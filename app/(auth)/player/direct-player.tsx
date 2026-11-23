@@ -44,6 +44,7 @@ import { VideoPlayerView } from "@/components/video-player/VideoPlayerView";
 import { PROGRESS_REPORT_INTERVAL } from "@/constants/Playback";
 import useRouter from "@/hooks/useAppRouter";
 import { useHaptic } from "@/hooks/useHaptic";
+import { useMusicVideoRoundTripVideo } from "@/hooks/useMusicVideoRoundTripVideo";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { useOrientation } from "@/hooks/useOrientation";
 import { usePlaybackManager } from "@/hooks/usePlaybackManager";
@@ -105,6 +106,7 @@ import {
   resolveAudioSwitch,
 } from "@/utils/jellyfin/subtitleUtils";
 import { logAndCaptureError, writeToLog } from "@/utils/log";
+import { reportMusicVideoPosition } from "@/utils/music/musicVideoRoundTrip";
 import {
   getEffectiveSubtitleMarginY,
   getEffectiveSubtitleScale,
@@ -235,6 +237,9 @@ export default function DirectPlayerPage() {
   // A video is on screen for as long as this page is: the music player reads
   // it to leave a remote's shuffle or repeat command to the video.
   useVideoSession();
+  // A video the music player's Watch toggle opened reports its position back
+  // to it, and hands the audio the place to continue from when it closes.
+  useMusicVideoRoundTripVideo(itemId);
 
   const offline = offlineStr === "true";
 
@@ -980,6 +985,11 @@ export default function DirectPlayerPage() {
         return;
       }
       livePositionStreamRef.current = stream;
+      // No-op unless this is the music video the Watch toggle opened: that is
+      // the only reader, and it reads the audio's position back on the way
+      // out. Reported here, where the position is known unrounded, rather
+      // than from the URL, which only catches up every 30 s.
+      reportMusicVideoPosition(item.Id, position);
 
       // MPV reports position in seconds, convert to ms
       const currentTime = position * 1000;

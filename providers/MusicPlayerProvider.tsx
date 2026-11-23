@@ -44,6 +44,7 @@ import {
 } from "@/utils/jellyfin/playbackModes";
 import { logAndCaptureError } from "@/utils/log";
 import { storage } from "@/utils/mmkv";
+import { onMusicVideoRoundTripFinished } from "@/utils/music/musicVideoRoundTrip";
 import {
   editNativeQueue,
   nativeIndexOf,
@@ -134,6 +135,13 @@ interface MusicPlayerContextType extends MusicPlayerState {
   previous: () => void;
   seek: (position: number) => void;
   stop: () => void;
+  /**
+   * Where the audio actually is, in seconds, read from the native player
+   * rather than from the last poll. The Watch toggle needs it exact: it hands
+   * this position to the video, and a second of drift is a second of song
+   * played twice.
+   */
+  getCurrentPosition: () => Promise<number>;
 
   // Queue management
   addToQueue: (tracks: BaseItemDto | BaseItemDto[]) => void;
@@ -216,6 +224,7 @@ const TVMusicPlayerProvider: React.FC<MusicPlayerProviderProps> = ({
     previous: noop,
     seek: noop,
     stop: noop,
+    getCurrentPosition: async () => 0,
     addToQueue: noop,
     playNext: noop,
     removeFromQueue: noop,
@@ -546,6 +555,10 @@ const MobileMusicPlayerProvider: React.FC<MusicPlayerProviderProps> = ({
   // The latest written position: a resume finishing its own waits seeks to
   // this, not to what its render saw.
   const progressRef = useRef(0);
+  // Which track is on screen, for callbacks that outlive their render: the
+  // music-video round trip returns after a screen change and must not seek a
+  // song the user has since skipped past.
+  const currentTrackIdRef = useRef<string | null>(null);
   // Which start put the spinner up: two starts of the same track share its
   // loadingTrackId, so the id alone cannot tell them apart.
   const loadingStartSeqRef = useRef(0);
@@ -578,6 +591,10 @@ const MobileMusicPlayerProvider: React.FC<MusicPlayerProviderProps> = ({
   useEffect(() => {
     progressRef.current = state.progress;
   }, [state.progress]);
+
+  useEffect(() => {
+    currentTrackIdRef.current = state.currentTrack?.Id ?? null;
+  }, [state.currentTrack?.Id]);
 
   const lastReportRef = useRef<number>(0);
 
@@ -2117,6 +2134,42 @@ const MobileMusicPlayerProvider: React.FC<MusicPlayerProviderProps> = ({
     [subscribe, setRepeatMode],
   );
 
+  const getCurrentPosition = useCallback(async () => {
+    if (!TrackPlayer) return progressRef.current;
+    try {
+      if (!(await playerReadyForControl())) return progressRef.current;
+      const { position } = await TrackPlayer.getProgress();
+      // A player that answered with nothing usable (no track loaded yet) is
+      // not at 0: the saved position is the better answer.
+      return Number.isFinite(position) && position > 0
+        ? position
+        : progressRef.current;
+    } catch {
+      return progressRef.current;
+    }
+  }, [playerReadyForControl]);
+
+  // The Watch toggle pauses the audio and opens the video; when the video
+  // closes it hands its last position back here and the same track carries on
+  // from there. Only a seek and a play: the native queue, the shuffle order
+  // and the repeat mode are left exactly as they were, so the mini player
+  // shows the same song it did before the switch.
+  useEffect(
+    () =>
+      onMusicVideoRoundTripFinished(({ trackId, positionSec }) => {
+        // Another track took over meanwhile (a remote Next, a different album
+        // played from another screen): the position belongs to a song that is
+        // no longer on screen, so it is dropped rather than applied to this
+        // one.
+        if (trackId !== currentTrackIdRef.current) return;
+        void (async () => {
+          await seek(positionSec);
+          await resume();
+        })();
+      }),
+    [seek, resume],
+  );
+
   const setProgress = useCallback((progress: number) => {
     setState((prev) => ({ ...prev, progress }));
   }, []);
@@ -2233,6 +2286,7 @@ const MobileMusicPlayerProvider: React.FC<MusicPlayerProviderProps> = ({
       jumpToIndex,
       setRepeatMode,
       toggleShuffle,
+      getCurrentPosition,
       setProgress,
       setDuration,
       setIsPlaying,
@@ -2264,6 +2318,7 @@ const MobileMusicPlayerProvider: React.FC<MusicPlayerProviderProps> = ({
       jumpToIndex,
       setRepeatMode,
       toggleShuffle,
+      getCurrentPosition,
       setProgress,
       setDuration,
       setIsPlaying,

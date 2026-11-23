@@ -37,6 +37,7 @@ import { Text } from "@/components/common/Text";
 import { CreatePlaylistModal } from "@/components/music/CreatePlaylistModal";
 import { PlaylistPickerSheet } from "@/components/music/PlaylistPickerSheet";
 import { TrackOptionsSheet } from "@/components/music/TrackOptionsSheet";
+import { WatchMusicVideoButton } from "@/components/music/WatchMusicVideoButton";
 import useRouter from "@/hooks/useAppRouter";
 import { useFavorite } from "@/hooks/useFavorite";
 import { useMusicCast } from "@/hooks/useMusicCast";
@@ -623,6 +624,10 @@ const PlayerView: React.FC<PlayerViewProps> = ({
           )}
         </TouchableOpacity>
       </View>
+
+      {/* Watch / Listen: only for a track whose music video the library holds,
+          and it carries its own bottom margin so a track without one leaves no gap. */}
+      <WatchMusicVideoButton track={currentTrack} variant='full' />
 
       {/* Volume Slider */}
       {!isTv && isSystemVolumeAvailable() && (

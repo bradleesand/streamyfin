@@ -22,6 +22,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GlassSurface } from "@/components/common/GlassSurface";
 import { Image } from "@/components/common/ServerImage";
 import { Text } from "@/components/common/Text";
+import { WatchMusicVideoButton } from "@/components/music/WatchMusicVideoButton";
 import useRouter from "@/hooks/useAppRouter";
 import { apiAtom } from "@/providers/JellyfinProvider";
 import { useMusicPlayer } from "@/providers/MusicPlayerProvider";
@@ -197,6 +198,8 @@ export const MiniPlayerBar: React.FC = () => {
           <ActivityIndicator size='small' color='white' style={styles.loader} />
         ) : (
           <>
+            {/* Only for a track whose music video the library holds. */}
+            <WatchMusicVideoButton track={currentTrack} variant='mini' />
             <TouchableOpacity
               onPress={handlePlayPause}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}

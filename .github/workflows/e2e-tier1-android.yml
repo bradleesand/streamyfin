@@ -47,6 +47,8 @@ jobs:
               - 'components/Chromecast.tsx'
               - 'components/JellyfinCastStopReporter.tsx'
               - 'components/PlayButton.tsx'
+              # Hides the Watch toggle while a cast runs; it reads the cast state.
+              - 'components/music/WatchMusicVideoButton.tsx'
               - 'hooks/useMusicCast.ts'
               - 'app/(auth)/now-playing.tsx'
               # The server screen the smoke flow finds by its test ids.
